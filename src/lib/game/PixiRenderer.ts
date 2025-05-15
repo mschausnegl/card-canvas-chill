@@ -77,8 +77,8 @@ export class PixiRenderer {
     
     this.app.stage.addChild(this.containers.dragLayer);
     
-    // Set up animation ticker - fixed TWEEN update issue
-    this.app.ticker.add(() => {
+    // Set up animation ticker with proper TWEEN update
+    this.app.ticker.add((delta) => {
       if (TWEEN) {
         TWEEN.update(this.app.ticker.lastTime);
       }
@@ -93,8 +93,8 @@ export class PixiRenderer {
     
     try {
       // Create temporary textures for development
-      this.emptyPileTexture = PIXI.Texture.from('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAACWCAQAAACK6o+NAAAA2ElEQVR4Ae3VMREAAAQEMZ+Y2vYSQA4Xj5LJ7FQsCBGICBABIgJEgIgAESAiQASICBABIgJEgIgAESAiQASICBABIgJEgIgAESAiQASICBABIgJEgIgAESAiQASICBABIgJEgIgAESAiQASICBABIgJEgIgAESAiQASICBABIgJEgIgAESAiQASICBABIgJEgIgAESAiQASICBABIgJEgIgAESAiQASICBABIgJEBMjwgAEEBQ37/JQdAAAAAElFTkSuQmCC');
-      this.cardBackTexture = PIXI.Texture.from('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAACWCAQAAACK6o+NAAAA2klEQVR4Ae3VMQ0AAAzDsPIPvSS4QQtIZrMXiwMCIkAEiAgQASICRICIABEgIkAEiAgQASICRICIABEgIkAEiAgQASICRICIABEgIkAEiAgQASICRICIABEgIkAEiAgQASICRICIABEgIkAEiAgQASICRICIABEgIkAEiAgQASICRICIABEgIkAEiAgQASICRICIABEgIkAEiAgQedUBsQEE0cnDiU8AAAAASUVORK5CYII=');
+      this.emptyPileTexture = PIXI.Texture.from('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAACWCAQAAACK6o+NAAAA2ElEQVR4Ae3VMREAAAQEMZ+Y2vYSQA4Xj5LJ7FQsCBGICBABIgJEgIgAESAiQASICBABIgJEgIgAESAiQASICBABIgJEgIgAESAiQASICBABIgJEgIgAESAiQASICBABIgJEgIgAESAiQASICBABIgJEgIgAESAiQASICBABIgJEgIgAESAiQASICBABIgJEBMjwgAEEBQ37/JQdAAAAAElFTkSuQmCC');
+      this.cardBackTexture = PIXI.Texture.from('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAACWCAQAAACK6o+NAAAA2klEQVR4Ae3VMQ0AAAzDsPIPvSS4QQtIZrMXiwMCIkAEiAgQASICRICIABEgIkAEiAgQASICRICIABEgIkAEiAgQASICRICIABEgIkAEiAgQASICRICIABEgIkAEiAgQASICRICIABEgIkAEiAgQASICRICIABEgIkAEiAgQedUBsQEE0cnDiU8AAAAASUVORK5CYII=');
 
       // In a real implementation, load a spritesheet with all card textures
       const suits = Object.values(Suit);
@@ -676,7 +676,7 @@ export class PixiRenderer {
     if (this.cardBackTexture) this.cardBackTexture.destroy();
     if (this.emptyPileTexture) this.emptyPileTexture.destroy();
     
-    // Destroy the PIXI application (fixed to use only supported properties)
+    // Destroy the PIXI application (with only supported properties)
     this.app.destroy(true, { children: true, texture: true });
   }
 }
