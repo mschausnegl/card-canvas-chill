@@ -91,7 +91,7 @@ export class PixiRenderer {
     
     try {
       // Create temporary textures for development
-      this.emptyPileTexture = PIXI.Texture.from('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAACWCAQAAACK6o+NAAAA2ElEQVR4Ae3VMREAAAQEMZ+Y2vYSQA4Xj5LJ7FQsCBGICBABIgJEgIgAESAiQASICBABIgJEgIgAESAiQASICBABIgJEgIgAESAiQASICBABIgJEgIgAESAiQASICBABIgJEgIgAESAiQASICBABIgJEgIgAESAiQASICBABIgJEgIgAESAiQASICBABIgJEgIgAESAiQASICBABIgJEgIgAESAiQASICBABIgJEgIgAESAiQASICBABIgJEgIgAESAiQASICBABIgJEgIgAESAiQASICBABIgJEBMjwgAEEBQ37/JQdAAAAAElFTkSuQmCC');
+      this.emptyPileTexture = PIXI.Texture.from('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAACWCAQAAACK6o+NAAAA2ElEQVR4Ae3VMREAAAQEMZ+Y2vYSQA4Xj5LJ7FQsCBGICBABIgJEgIgAESAiQASICBABIgJEgIgAESAiQASICBABIgJEgIgAESAiQASICBABIgJEgIgAESAiQASICBABIgJEgIgAESAiQASICBABIgJEgIgAESAiQASICBABIgJEgIgAESAiQASICBABIgJEgIgAESAiQASICBABIgJEgIgAESAiQASICBABIgJEgIgAESAiQASICBABIgJEgIgAESAiQASICBABIgJEBMjwgAEEBQ37/JQdAAAAAElFTkSuQmCC');
       this.cardBackTexture = PIXI.Texture.from('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAACWCAQAAACK6o+NAAAA2klEQVR4Ae3VMQ0AAAzDsPIPvSS4QQtIZrMXiwMCIkAEiAgQASICRICIABEgIkAEiAgQASICRICIABEgIkAEiAgQASICRICIABEgIkAEiAgQASICRICIABEgIkAEiAgQASICRICIABEgIkAEiAgQASICRICIABEgIkAEiAgQASICRICIABEgIkAEiAgQASICRICIABEgIkAEiAgQASICRICIABEgIkAEiAgQASICRICIABEgIkAEiAgQASICRICIABEgIkAEiAgQASICRICIABEgIkAEiAgQedUBsQEE0cnDiU8AAAAASUVORK5CYII=');
 
       // In a real implementation, load a spritesheet with all card textures
@@ -306,7 +306,7 @@ export class PixiRenderer {
       if (!this.cardSprites[card.id]) {
         const texture = card.faceUp 
           ? this.cardTextures[`${card.suit}-${card.rank}`]
-          : this.cardBackTexture;
+          : this.cardBackTexture!;
           
         if (!texture) {
           console.error(`Texture not found for card: ${card.id}`);
@@ -674,7 +674,7 @@ export class PixiRenderer {
     if (this.cardBackTexture) this.cardBackTexture.destroy();
     if (this.emptyPileTexture) this.emptyPileTexture.destroy();
     
-    // Destroy the PIXI application
-    this.app.destroy(true, { children: true, texture: true, baseTexture: true });
+    // Destroy the PIXI application (fixed to use only supported properties)
+    this.app.destroy(true, { children: true, texture: true });
   }
 }
