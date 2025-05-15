@@ -77,11 +77,11 @@ export class PixiRenderer {
     
     this.app.stage.addChild(this.containers.dragLayer);
     
-    // Set up animation ticker with proper TWEEN update
-    this.app.ticker.add((delta) => {
-      if (TWEEN) {
-        TWEEN.update(this.app.ticker.lastTime);
-      }
+    // Fix: Make sure TWEEN is properly initialized and updated
+    // Use a simple ticker callback with no dependencies on TWEEN internal methods
+    this.app.ticker.add(() => {
+      // Update TWEEN on each frame
+      TWEEN.update();
     });
     
     // Handle window resize
@@ -93,8 +93,8 @@ export class PixiRenderer {
     
     try {
       // Create temporary textures for development
-      this.emptyPileTexture = PIXI.Texture.from('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAACWCAQAAACK6o+NAAAA2ElEQVR4Ae3VMREAAAQEMZ+Y2vYSQA4Xj5LJ7FQsCBGICBABIgJEgIgAESAiQASICBABIgJEgIgAESAiQASICBABIgJEgIgAESAiQASICBABIgJEgIgAESAiQASICBABIgJEgIgAESAiQASICBABIgJEgIgAESAiQASICBABIgJEgIgAESAiQASICBABIgJEBMjwgAEEBQ37/JQdAAAAAElFTkSuQmCC');
-      this.cardBackTexture = PIXI.Texture.from('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAACWCAQAAACK6o+NAAAA2klEQVR4Ae3VMQ0AAAzDsPIPvSS4QQtIZrMXiwMCIkAEiAgQASICRICIABEgIkAEiAgQASICRICIABEgIkAEiAgQASICRICIABEgIkAEiAgQASICRICIABEgIkAEiAgQASICRICIABEgIkAEiAgQASICRICIABEgIkAEiAgQedUBsQEE0cnDiU8AAAAASUVORK5CYII=');
+      this.emptyPileTexture = PIXI.Texture.from('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAACWCAQAAACK6o+NAAAA2ElEQVR4Ae3VMREAAAQEMZ+Y2vYSQA4Xj5LJ7FQsCBGICBABIgJEgIgAESAiQASICBABIgJEgIgAESAiQASICBABIgJEgIgAESAiQASICBABIgJEgIgAESAiQASICBABIgJEgIgAESAiQASICBABIgJEBMjwgAEEBQ37/JQdAAAAAElFTkSuQmCC');
+      this.cardBackTexture = PIXI.Texture.from('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAACWCAQAAACK6o+NAAAA2klEQVR4Ae3VMQ0AAAzDsPIPvSS4QQtIZrMXiwMCIkAEiAgQASICRICIABEgIkAEiAgQASICRICIABEgIkAEiAgQASICRICIABEgIkAEiAgQASICRICIABEgIkAEiAgQedUBsQEE0cnDiU8AAAAASUVORK5CYII=');
 
       // In a real implementation, load a spritesheet with all card textures
       const suits = Object.values(Suit);
@@ -584,8 +584,8 @@ export class PixiRenderer {
     animSprite.position.set(fromPos.x, fromPos.y);
     this.app.stage.addChild(animSprite);
     
-    // Animate using Tween.js
-    new TWEEN.Tween(animSprite.position)
+    // Fix: Create a proper tween for animation using the imported TWEEN
+    const tween = new TWEEN.Tween(animSprite.position)
       .to({ x: toPos.x, y: toPos.y }, 250)
       .easing(TWEEN.Easing.Quadratic.Out)
       .onComplete(() => {
@@ -603,8 +603,8 @@ export class PixiRenderer {
     
     this.animationInProgress = true;
     
-    // Scale down horizontally, change texture, then scale back up
-    new TWEEN.Tween(sprite.scale)
+    // Fix: Create a proper tween for animation
+    const tween = new TWEEN.Tween(sprite.scale)
       .to({ x: 0 }, 150)
       .onComplete(() => {
         sprite.texture = card.faceUp 
@@ -644,7 +644,7 @@ export class PixiRenderer {
       
       this.app.stage.addChild(sprite);
       
-      // Animate falling
+      // Fix: Create proper tweens for animation
       new TWEEN.Tween(sprite.position)
         .to({ y: height + CARD_HEIGHT * CARD_SCALE }, 3000 + Math.random() * 4000)
         .delay(Math.random() * 2000)
@@ -655,7 +655,6 @@ export class PixiRenderer {
         })
         .start();
         
-      // Animate rotation
       new TWEEN.Tween(sprite)
         .to({ rotation: (Math.random() - 0.5) * Math.PI * 4 }, 3000 + Math.random() * 4000)
         .delay(Math.random() * 2000)
@@ -665,7 +664,7 @@ export class PixiRenderer {
   }
   
   public destroy(): void {
-    window.removeEventListener('resize', this.handleResize);
+    window.removeEventListener('resize', this.handleResize.bind(this));
     
     if (this.resizeTimeout !== null) {
       clearTimeout(this.resizeTimeout);
@@ -676,7 +675,7 @@ export class PixiRenderer {
     if (this.cardBackTexture) this.cardBackTexture.destroy();
     if (this.emptyPileTexture) this.emptyPileTexture.destroy();
     
-    // Destroy the PIXI application (with only supported properties)
-    this.app.destroy(true, { children: true, texture: true });
+    // Fix: Simplify destroy options to only include supported properties
+    this.app.destroy(true);
   }
 }
