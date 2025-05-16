@@ -1,4 +1,3 @@
-
 import { SolitaireGameLogic } from './SolitaireGameLogic';
 import { PixiRenderer, CardMoveEvent } from './PixiRenderer';
 import { GameState, Card, PileType } from '../utils/constants';
@@ -24,6 +23,7 @@ export class GameManager {
   public async initialize(): Promise<void> {
     // Load assets
     try {
+      console.log("Starting asset loading...");
       await this.renderer.loadAssets();
       await this.audioManager.initialize();
       console.log("Game assets loaded successfully");

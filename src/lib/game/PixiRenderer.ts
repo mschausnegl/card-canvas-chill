@@ -32,15 +32,7 @@ export class PixiRenderer {
   private animationInProgress = false;
   
   constructor(canvas: HTMLCanvasElement) {
-    // Create Pixi Application
-    this.app = new PIXI.Application({
-      view: canvas as HTMLCanvasElement,
-      resolution: window.devicePixelRatio || 1,
-      backgroundColor: 0x219653, // Solitaire green
-      autoDensity: true
-    });
-    
-    // Create containers for card piles
+    // Initialize containers first
     this.containers = {
       stock: new PIXI.Container(),
       waste: new PIXI.Container(),
@@ -59,22 +51,35 @@ export class PixiRenderer {
         new PIXI.Container(),
         new PIXI.Container()
       ],
-      dragLayer: new PIXI.Container() // Top layer for dragged cards
+      dragLayer: new PIXI.Container()
     };
+
+    // Create Pixi Application with Pixi v8 recommended approach
+    this.app = new PIXI.Application();
     
-    // Add containers to the stage
-    this.app.stage.addChild(this.containers.stock);
-    this.app.stage.addChild(this.containers.waste);
-    
-    for (const foundation of this.containers.foundations) {
-      this.app.stage.addChild(foundation);
-    }
-    
-    for (const tableau of this.containers.tableau) {
-      this.app.stage.addChild(tableau);
-    }
-    
-    this.app.stage.addChild(this.containers.dragLayer);
+    // Initialize the app first, then add to stage
+    this.app.init({
+      view: canvas,
+      resolution: window.devicePixelRatio || 1,
+      backgroundColor: 0x219653, // Solitaire green
+      autoDensity: true
+    }).then(() => {
+      console.log("PIXI application initialized successfully");
+      
+      // Add containers to the stage
+      this.app.stage.addChild(this.containers.stock);
+      this.app.stage.addChild(this.containers.waste);
+      
+      for (const foundation of this.containers.foundations) {
+        this.app.stage.addChild(foundation);
+      }
+      
+      for (const tableau of this.containers.tableau) {
+        this.app.stage.addChild(tableau);
+      }
+      
+      this.app.stage.addChild(this.containers.dragLayer);
+    });
     
     // Handle window resize
     window.addEventListener('resize', this.handleResize.bind(this));
@@ -83,10 +88,24 @@ export class PixiRenderer {
   public async loadAssets(): Promise<void> {
     if (this.isLoaded) return;
     
+    // Ensure PIXI app is initialized and ready
+    if (!this.app.stage) {
+      await new Promise<void>((resolve) => {
+        const checkInit = () => {
+          if (this.app.stage) {
+            resolve();
+          } else {
+            setTimeout(checkInit, 50);
+          }
+        };
+        checkInit();
+      });
+    }
+    
     try {
       // Create base textures for cards using direct URLs instead of graphics generation
-      this.emptyPileTexture = PIXI.Texture.from('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAACWCAQAAACK6o+NAAAA2ElEQVR4Ae3VMREAAAQEMZ+Y2vYSQA4Xj5LJ7FQsCBGICBABIgJEgIgAESAiQASICBABIgJEgIgAESAiQASICBABIgJEgIgAESAiQASICBABIgJEgIgAESAiQASICBABIgJEgIgAESAiQASICBABIgJEBMjwgAEEBQ37/JQdAAAAAElFTkSuQmCC');
-      this.cardBackTexture = PIXI.Texture.from('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAACWCAQAAACK6o+NAAAA2klEQVR4Ae3VMQ0AAAzDsPIPvSS4QQtIZrMXiwMCIkAEiAgQASICRICIABEgIkAEiAgQASICRICIABEgIkAEiAgQASICRICIABEgIkAEiAgQASICRICIABEgIkAEiAgQedUBsQEE0cnDiU8AAAAASUVORK5CYII=');
+      this.emptyPileTexture = await PIXI.Texture.fromURL('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAACWCAQAAACK6o+NAAAA2ElEQVR4Ae3VMREAAAQEMZ+Y2vYSQA4Xj5LJ7FQsCBGICBABIgJEgIgAESAiQASICBABIgJEgIgAESAiQASICBABIgJEgIgAESAiQASICBABIgJEgIgAESAiQASICBABIgJEgIgAESAiQASICBABIgJEBMjwgAEEBQ37/JQdAAAAAElFTkSuQmCC');
+      this.cardBackTexture = await PIXI.Texture.fromURL('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAACWCAQAAACK6o+NAAAA2klEQVR4Ae3VMQ0AAAzDsPIPvSS4QQtIZrMXiwMCIkAEiAgQASICRICIABEgIkAEiAgQASICRICIABEgIkAEiAgQASICRICIABEgIkAEiAgQASICRICIABEgIkAEiAgQedUBsQEE0cnDiU8AAAAASUVORK5CYII=');
 
       const suits = Object.values(Suit);
       const ranks = Array.from({ length: 13 }, (_, i) => i + 1);
@@ -128,7 +147,8 @@ export class PixiRenderer {
             ctx.fillText(suitSymbol, CARD_WIDTH / 2, CARD_HEIGHT / 2 + 40);
             
             // Convert canvas to texture
-            this.cardTextures[key] = PIXI.Texture.from(canvas);
+            const base64 = canvas.toDataURL('image/png');
+            this.cardTextures[key] = await PIXI.Texture.fromURL(base64);
           }
         }
       }
@@ -205,12 +225,19 @@ export class PixiRenderer {
     }
     
     this.resizeTimeout = window.setTimeout(() => {
-      this.positionContainers();
-      this.updateCardPositions();
+      if (this.app.screen) {
+        this.positionContainers();
+        this.updateCardPositions();
+      }
     }, 100) as unknown as number;
   }
   
   private positionContainers(): void {
+    if (!this.app.screen) {
+      console.warn("Cannot position containers: app.screen is not defined");
+      return;
+    }
+    
     const width = this.app.screen.width;
     const height = this.app.screen.height;
     
@@ -350,7 +377,7 @@ export class PixiRenderer {
   }
   
   private updateCardPositions(): void {
-    // Implementation details would depend on how you track the current state
+    // This method would need to update positions based on the current state
   }
   
   private setupInteractivity(
@@ -563,7 +590,6 @@ export class PixiRenderer {
       .easing(TWEEN.Easing.Quadratic.Out)
       .onComplete(() => {
         this.app.stage.removeChild(animSprite);
-        animSprite.destroy();
         this.animationInProgress = false;
         if (onComplete) onComplete();
       })
@@ -596,6 +622,8 @@ export class PixiRenderer {
   }
   
   public winAnimation(): void {
+    if (!this.app.screen) return;
+    
     // Create falling card sprites
     const width = this.app.screen.width;
     const height = this.app.screen.height;
@@ -625,7 +653,6 @@ export class PixiRenderer {
         .easing(TWEEN.Easing.Quadratic.In)
         .onComplete(() => {
           this.app.stage.removeChild(sprite);
-          sprite.destroy();
         })
         .start();
         

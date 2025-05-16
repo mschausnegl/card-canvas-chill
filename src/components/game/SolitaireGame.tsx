@@ -1,4 +1,3 @@
-
 import React, { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { GameManager } from "@/lib/game/GameManager";
@@ -46,14 +45,24 @@ const SolitaireGame: React.FC = () => {
   // Initialize game
   useEffect(() => {
     const initGame = async () => {
+      console.log("Initializing game...");
       try {
         setIsLoading(true);
         
         if (canvasRef.current) {
+          console.log("Canvas ref is available, creating game manager");
+          // Make sure the canvas is properly sized
+          if (canvasRef.current.parentElement) {
+            canvasRef.current.width = canvasRef.current.parentElement.clientWidth;
+            canvasRef.current.height = canvasRef.current.parentElement.clientHeight;
+          }
+          
           const manager = new GameManager(canvasRef.current);
           
           // Initialize the game manager
+          console.log("Starting manager initialization");
           await manager.initialize();
+          console.log("Manager initialized successfully");
           
           // Set up callbacks
           manager.setUpdateCallback((state) => {
@@ -74,6 +83,8 @@ const SolitaireGame: React.FC = () => {
           
           // Store reference to game manager
           gameManagerRef.current = manager;
+        } else {
+          console.error("Canvas reference is null");
         }
       } catch (error) {
         console.error("Failed to initialize game:", error);
@@ -89,8 +100,19 @@ const SolitaireGame: React.FC = () => {
     
     initGame();
     
+    // Add resize handler to adjust canvas size
+    const handleResize = () => {
+      if (canvasRef.current && canvasRef.current.parentElement) {
+        canvasRef.current.width = canvasRef.current.parentElement.clientWidth;
+        canvasRef.current.height = canvasRef.current.parentElement.clientHeight;
+      }
+    };
+    
+    window.addEventListener('resize', handleResize);
+    
     // Cleanup function
     return () => {
+      window.removeEventListener('resize', handleResize);
       if (gameManagerRef.current) {
         gameManagerRef.current.destroy();
         gameManagerRef.current = null;
@@ -292,7 +314,7 @@ const SolitaireGame: React.FC = () => {
         
         <canvas 
           ref={canvasRef} 
-          className="game-canvas w-full h-full"
+          className="game-canvas w-full h-full block"
           style={{ touchAction: 'none' }}
         ></canvas>
       </div>
