@@ -29,7 +29,7 @@ export class GameManager {
     try {
       console.log("Starting asset loading...");
       // Small delay to ensure the canvas is fully ready
-      await new Promise(resolve => setTimeout(resolve, 300));
+      await new Promise(resolve => setTimeout(resolve, 500));
       
       // Initialize audio first
       await this.audioManager.initialize();

@@ -1,4 +1,3 @@
-
 import * as PIXI from 'pixi.js';
 import TWEEN from '../utils/tween';
 import { Card, PileType, Suit, Rank, CARD_WIDTH, CARD_HEIGHT, CARD_SCALE, CARD_OVERLAP, CARD_FACE_DOWN_OVERLAP, PILE_PADDING } from '../utils/constants';
@@ -72,34 +71,31 @@ export class PixiRenderer {
         this.canvas.height = this.canvas.parentElement.clientHeight || 600;
       }
       
-      // Create the Pixi application - using recommended Pixi v8 approach
-      this.app = new PIXI.Application();
-      PIXI.Application.init({
-        canvas: this.canvas,
+      // Create the Pixi application - use correct initialization method for Pixi.js v8
+      this.app = new PIXI.Application({
+        view: this.canvas,
         backgroundColor: 0x219653, // Solitaire green
         resolution: window.devicePixelRatio || 1,
         autoDensity: true,
         width: this.canvas.width,
         height: this.canvas.height
-      }).then(app => {
-        this.app = app;
-        
-        // Add containers to stage
-        if (this.app && this.app.stage) {
-          this.app.stage.addChild(this.containers.stock);
-          this.app.stage.addChild(this.containers.waste);
-          
-          for (const foundation of this.containers.foundations) {
-            this.app.stage.addChild(foundation);
-          }
-          
-          for (const tableau of this.containers.tableau) {
-            this.app.stage.addChild(tableau);
-          }
-          
-          this.app.stage.addChild(this.containers.dragLayer);
-        }
       });
+      
+      // Add containers to stage
+      if (this.app && this.app.stage) {
+        this.app.stage.addChild(this.containers.stock);
+        this.app.stage.addChild(this.containers.waste);
+          
+        for (const foundation of this.containers.foundations) {
+          this.app.stage.addChild(foundation);
+        }
+          
+        for (const tableau of this.containers.tableau) {
+          this.app.stage.addChild(tableau);
+        }
+        
+        this.app.stage.addChild(this.containers.dragLayer);
+      }
     } catch (error) {
       console.error("Failed to initialize Pixi application:", error);
       throw error;
@@ -693,6 +689,8 @@ export class PixiRenderer {
   }
   
   private onDragEnd(event: PIXI.FederatedPointerEvent): void {
+    if (!this.app || !this.app.stage) return;
+    
     this.app.stage.off('pointermove', this.onDragMove, this);
     this.app.stage.off('pointerup', this.onDragEnd, this);
     this.app.stage.off('pointerupoutside', this.onDragEnd, this);
@@ -883,109 +881,5 @@ export class PixiRenderer {
         console.error("Error destroying Pixi application:", e);
       }
     }
-  }
-  
-  private positionStockCards(cards: Card[]): void {
-    if (cards.length === 0) return;
-    
-    const topCard = cards[cards.length - 1];
-    const sprite = this.cardSprites[topCard.id];
-    if (sprite) {
-      this.containers.stock.addChild(sprite);
-    }
-  }
-  
-  private positionWasteCards(cards: Card[]): void {
-    if (cards.length === 0) return;
-    
-    const topCard = cards[cards.length - 1];
-    const sprite = this.cardSprites[topCard.id];
-    if (sprite) {
-      this.containers.waste.addChild(sprite);
-    }
-  }
-  
-  private positionFoundationCards(foundations: Card[][]): void {
-    foundations.forEach((pile, index) => {
-      if (pile.length === 0) return;
-      
-      const topCard = pile[pile.length - 1];
-      const sprite = this.cardSprites[topCard.id];
-      if (sprite) {
-        this.containers.foundations[index].addChild(sprite);
-      }
-    });
-  }
-  
-  private positionTableauCards(tableau: Card[][]): void {
-    tableau.forEach((pile, pileIndex) => {
-      pile.forEach((card, cardIndex) => {
-        const sprite = this.cardSprites[card.id];
-        if (sprite) {
-          // Position the card with overlap
-          sprite.position.y = (card.faceUp ? CARD_OVERLAP : CARD_FACE_DOWN_OVERLAP) * cardIndex;
-          this.containers.tableau[pileIndex].addChild(sprite);
-        }
-      });
-    });
-  }
-  
-  private onDragMove(event: PIXI.FederatedPointerEvent): void {
-    if (this.draggedCards.length === 0) return;
-    
-    const newPosition = event.global;
-    this.containers.dragLayer.position.set(newPosition.x, newPosition.y);
-  }
-  
-  private onDragEnd(event: PIXI.FederatedPointerEvent): void {
-    if (!this.app || !this.app.stage) return;
-    
-    this.app.stage.off('pointermove', this.onDragMove, this);
-    this.app.stage.off('pointerup', this.onDragEnd, this);
-    this.app.stage.off('pointerupoutside', this.onDragEnd, this);
-    
-    if (this.draggedCards.length === 0 || !this.dragOrigin) return;
-    
-    // Determine drop target
-    const dropTarget = this.getDropTarget(event.global);
-    
-    // Clear drag layer
-    this.containers.dragLayer.removeChildren();
-    this.draggedCards = [];
-    
-    if (dropTarget && this.onCardMoveCallback) {
-      // Attempt to move card
-      this.onCardMoveCallback({
-        fromPile: this.dragOrigin.pile,
-        fromIndex: this.dragOrigin.index,
-        cardIndex: this.dragOrigin.cardIndex,
-        toPile: dropTarget.pile,
-        toIndex: dropTarget.index
-      });
-    }
-    
-    this.dragOrigin = null;
-  }
-  
-  private getDropTarget(position: PIXI.Point): { pile: PileType; index: number } | null {
-    // Check foundations
-    for (let i = 0; i < 4; i++) {
-      const bounds = this.containers.foundations[i].getBounds();
-      if (position.x >= bounds.x && position.x <= bounds.x + bounds.width &&
-          position.y >= bounds.y && position.y <= bounds.y + bounds.height) {
-        return { pile: PileType.FOUNDATION, index: i };
-      }
-    }
-    
-    // Check tableau piles
-    for (let i = 0; i < 7; i++) {
-      const bounds = this.containers.tableau[i].getBounds();
-      if (position.x >= bounds.x && position.x <= bounds.x + bounds.width &&
-          position.y >= bounds.y) { // No upper bound check for tableau as it can extend vertically
-        return { pile: PileType.TABLEAU, index: i };
-      }
-    }
-    
-    return null;
   }
 }
