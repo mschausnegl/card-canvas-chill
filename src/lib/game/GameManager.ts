@@ -1,3 +1,4 @@
+
 import { SolitaireGameLogic } from './SolitaireGameLogic';
 import { PixiRenderer, CardMoveEvent } from './PixiRenderer';
 import { GameState, Card, PileType } from '../utils/constants';
@@ -24,6 +25,8 @@ export class GameManager {
     // Load assets
     try {
       console.log("Starting asset loading...");
+      // Small delay to ensure the canvas is fully ready
+      await new Promise(resolve => setTimeout(resolve, 100));
       await this.renderer.loadAssets();
       await this.audioManager.initialize();
       console.log("Game assets loaded successfully");

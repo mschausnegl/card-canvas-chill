@@ -1,3 +1,4 @@
+
 import * as PIXI from 'pixi.js';
 import TWEEN from '../utils/tween';
 import { Card, PileType, Suit, Rank, CARD_WIDTH, CARD_HEIGHT, CARD_SCALE, CARD_OVERLAP, CARD_FACE_DOWN_OVERLAP, PILE_PADDING } from '../utils/constants';
@@ -62,7 +63,9 @@ export class PixiRenderer {
       view: canvas,
       resolution: window.devicePixelRatio || 1,
       backgroundColor: 0x219653, // Solitaire green
-      autoDensity: true
+      autoDensity: true,
+      width: canvas.clientWidth,
+      height: canvas.clientHeight
     }).then(() => {
       console.log("PIXI application initialized successfully");
       
@@ -79,6 +82,8 @@ export class PixiRenderer {
       }
       
       this.app.stage.addChild(this.containers.dragLayer);
+    }).catch(error => {
+      console.error("Failed to initialize PIXI application:", error);
     });
     
     // Handle window resize
@@ -103,14 +108,48 @@ export class PixiRenderer {
     }
     
     try {
-      // Create base textures for cards using direct URLs instead of graphics generation
-      this.emptyPileTexture = await PIXI.Texture.fromURL('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAACWCAQAAACK6o+NAAAA2ElEQVR4Ae3VMREAAAQEMZ+Y2vYSQA4Xj5LJ7FQsCBGICBABIgJEgIgAESAiQASICBABIgJEgIgAESAiQASICBABIgJEgIgAESAiQASICBABIgJEgIgAESAiQASICBABIgJEgIgAESAiQASICBABIgJEBMjwgAEEBQ37/JQdAAAAAElFTkSuQmCC');
-      this.cardBackTexture = await PIXI.Texture.fromURL('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAACWCAQAAACK6o+NAAAA2klEQVR4Ae3VMQ0AAAzDsPIPvSS4QQtIZrMXiwMCIkAEiAgQASICRICIABEgIkAEiAgQASICRICIABEgIkAEiAgQASICRICIABEgIkAEiAgQASICRICIABEgIkAEiAgQedUBsQEE0cnDiU8AAAAASUVORK5CYII=');
+      // Create base textures for cards using canvas rendering instead of direct URLs
+      // Empty pile texture
+      const emptyPileCanvas = document.createElement('canvas');
+      emptyPileCanvas.width = CARD_WIDTH;
+      emptyPileCanvas.height = CARD_HEIGHT;
+      const emptyCtx = emptyPileCanvas.getContext('2d');
+      if (emptyCtx) {
+        emptyCtx.fillStyle = '#FFFFFF';
+        emptyCtx.globalAlpha = 0.2;
+        emptyCtx.fillRect(0, 0, CARD_WIDTH, CARD_HEIGHT);
+        emptyCtx.strokeStyle = '#999999';
+        emptyCtx.lineWidth = 2;
+        emptyCtx.strokeRect(0, 0, CARD_WIDTH, CARD_HEIGHT);
+      }
+      this.emptyPileTexture = PIXI.Texture.from(emptyPileCanvas);
+
+      // Card back texture
+      const cardBackCanvas = document.createElement('canvas');
+      cardBackCanvas.width = CARD_WIDTH;
+      cardBackCanvas.height = CARD_HEIGHT;
+      const backCtx = cardBackCanvas.getContext('2d');
+      if (backCtx) {
+        backCtx.fillStyle = '#0066CC';
+        backCtx.fillRect(0, 0, CARD_WIDTH, CARD_HEIGHT);
+        backCtx.strokeStyle = '#FFFFFF';
+        backCtx.lineWidth = 2;
+        backCtx.strokeRect(3, 3, CARD_WIDTH - 6, CARD_HEIGHT - 6);
+        
+        // Add a pattern to the back
+        backCtx.fillStyle = '#003366';
+        for (let i = 0; i < 5; i++) {
+          for (let j = 0; j < 7; j++) {
+            backCtx.fillRect(15 + i * 20, 15 + j * 20, 10, 10);
+          }
+        }
+      }
+      this.cardBackTexture = PIXI.Texture.from(cardBackCanvas);
 
       const suits = Object.values(Suit);
       const ranks = Array.from({ length: 13 }, (_, i) => i + 1);
 
-      // Create simple card textures using canvas instead of PIXI.Graphics
+      // Create simple card textures using canvas
       for (const suit of suits) {
         for (const rank of ranks) {
           const key = `${suit}-${rank}`;
@@ -147,8 +186,7 @@ export class PixiRenderer {
             ctx.fillText(suitSymbol, CARD_WIDTH / 2, CARD_HEIGHT / 2 + 40);
             
             // Convert canvas to texture
-            const base64 = canvas.toDataURL('image/png');
-            this.cardTextures[key] = await PIXI.Texture.fromURL(base64);
+            this.cardTextures[key] = PIXI.Texture.from(canvas);
           }
         }
       }
@@ -233,13 +271,13 @@ export class PixiRenderer {
   }
   
   private positionContainers(): void {
-    if (!this.app.screen) {
-      console.warn("Cannot position containers: app.screen is not defined");
+    if (!this.app || !this.app.renderer) {
+      console.warn("Cannot position containers: app.renderer is not defined");
       return;
     }
     
-    const width = this.app.screen.width;
-    const height = this.app.screen.height;
+    const width = this.app.renderer.width;
+    const height = this.app.renderer.height;
     
     // Calculate layout
     const scaledCardWidth = CARD_WIDTH * CARD_SCALE;
@@ -672,10 +710,12 @@ export class PixiRenderer {
     }
     
     // Destroy all textures and sprites
-    Object.values(this.cardTextures).forEach(texture => texture.destroy(true));
-    if (this.cardBackTexture) this.cardBackTexture.destroy(true);
-    if (this.emptyPileTexture) this.emptyPileTexture.destroy(true);
+    Object.values(this.cardTextures).forEach(texture => texture?.destroy?.(true));
+    if (this.cardBackTexture) this.cardBackTexture.destroy?.(true);
+    if (this.emptyPileTexture) this.emptyPileTexture.destroy?.(true);
     
-    this.app.destroy(true, { children: true, texture: true });
+    if (this.app) {
+      this.app.destroy(true, { children: true, texture: true });
+    }
   }
 }
