@@ -33,7 +33,17 @@ export class PixiRenderer {
   private animationInProgress = false;
   
   constructor(canvas: HTMLCanvasElement) {
-    // Initialize containers first
+    // Initialize Pixi Application first with the canvas
+    this.app = new PIXI.Application({
+      view: canvas as HTMLCanvasElement,
+      resolution: window.devicePixelRatio || 1,
+      backgroundColor: 0x219653, // Solitaire green
+      autoDensity: true,
+      width: canvas.width,
+      height: canvas.height
+    });
+    
+    // Initialize containers
     this.containers = {
       stock: new PIXI.Container(),
       waste: new PIXI.Container(),
@@ -54,61 +64,32 @@ export class PixiRenderer {
       ],
       dragLayer: new PIXI.Container()
     };
-
-    // Create Pixi Application with Pixi v8 recommended approach
-    this.app = new PIXI.Application();
     
-    // Initialize the app first, then add to stage
-    this.app.init({
-      view: canvas,
-      resolution: window.devicePixelRatio || 1,
-      backgroundColor: 0x219653, // Solitaire green
-      autoDensity: true,
-      width: canvas.clientWidth,
-      height: canvas.clientHeight
-    }).then(() => {
-      console.log("PIXI application initialized successfully");
-      
-      // Add containers to the stage
-      this.app.stage.addChild(this.containers.stock);
-      this.app.stage.addChild(this.containers.waste);
-      
-      for (const foundation of this.containers.foundations) {
-        this.app.stage.addChild(foundation);
-      }
-      
-      for (const tableau of this.containers.tableau) {
-        this.app.stage.addChild(tableau);
-      }
-      
-      this.app.stage.addChild(this.containers.dragLayer);
-    }).catch(error => {
-      console.error("Failed to initialize PIXI application:", error);
-    });
+    // Add containers to stage
+    this.app.stage.addChild(this.containers.stock);
+    this.app.stage.addChild(this.containers.waste);
+    
+    for (const foundation of this.containers.foundations) {
+      this.app.stage.addChild(foundation);
+    }
+    
+    for (const tableau of this.containers.tableau) {
+      this.app.stage.addChild(tableau);
+    }
+    
+    this.app.stage.addChild(this.containers.dragLayer);
     
     // Handle window resize
     window.addEventListener('resize', this.handleResize.bind(this));
   }
   
   public async loadAssets(): Promise<void> {
-    if (this.isLoaded) return;
-    
-    // Ensure PIXI app is initialized and ready
-    if (!this.app.stage) {
-      await new Promise<void>((resolve) => {
-        const checkInit = () => {
-          if (this.app.stage) {
-            resolve();
-          } else {
-            setTimeout(checkInit, 50);
-          }
-        };
-        checkInit();
-      });
-    }
-    
     try {
-      // Create base textures for cards using canvas rendering instead of direct URLs
+      console.log("PixiRenderer loadAssets starting...");
+      
+      if (this.isLoaded) return;
+
+      // Create base textures for cards using canvas rendering
       // Empty pile texture
       const emptyPileCanvas = document.createElement('canvas');
       emptyPileCanvas.width = CARD_WIDTH;
@@ -179,57 +160,117 @@ export class PixiRenderer {
             ctx.fillText(rankText, 10, 30);
             ctx.fillText(suitSymbol, 10, 60);
             
-            // Center rank and suit
-            ctx.font = 'bold 40px Arial';
-            ctx.textAlign = 'center';
-            ctx.fillText(rankText, CARD_WIDTH / 2, CARD_HEIGHT / 2 - 10);
-            ctx.fillText(suitSymbol, CARD_WIDTH / 2, CARD_HEIGHT / 2 + 40);
+            // Bottom-right rank and suit (inverted)
+            ctx.save();
+            ctx.translate(CARD_WIDTH - 10, CARD_HEIGHT - 10);
+            ctx.rotate(Math.PI);
+            ctx.fillText(rankText, 0, 0);
+            ctx.fillText(suitSymbol, 0, -30);
+            ctx.restore();
             
-            // Convert canvas to texture
-            this.cardTextures[key] = PIXI.Texture.from(canvas);
+            // Center suit for numbered cards
+            if (rank > 1 && rank < 11) {
+              ctx.font = 'bold 32px Arial';
+              ctx.textAlign = 'center';
+              
+              // Simple layout algorithm for pips based on rank
+              const pips = [];
+              if (rank <= 3) {
+                // Center pip for Ace, 2, 3
+                pips.push({x: CARD_WIDTH / 2, y: CARD_HEIGHT / 2});
+              }
+              
+              if (rank >= 2) {
+                // Top and bottom pips for 2+
+                pips.push({x: CARD_WIDTH / 2, y: CARD_HEIGHT / 4});
+                pips.push({x: CARD_WIDTH / 2, y: CARD_HEIGHT * 3 / 4});
+              }
+              
+              if (rank >= 4) {
+                // Left and right pips for 4+
+                pips.push({x: CARD_WIDTH / 4, y: CARD_HEIGHT / 4});
+                pips.push({x: CARD_WIDTH * 3 / 4, y: CARD_HEIGHT * 3 / 4});
+              }
+              
+              if (rank >= 6) {
+                // Middle left and right for 6+
+                pips.push({x: CARD_WIDTH / 4, y: CARD_HEIGHT / 2});
+                pips.push({x: CARD_WIDTH * 3 / 4, y: CARD_HEIGHT / 2});
+              }
+              
+              if (rank >= 8) {
+                // Middle top and bottom for 8+
+                pips.push({x: CARD_WIDTH / 2, y: CARD_HEIGHT * 3 / 8});
+                pips.push({x: CARD_WIDTH / 2, y: CARD_HEIGHT * 5 / 8});
+              }
+              
+              if (rank >= 10) {
+                // Extra middle pip for 10
+                pips.push({x: CARD_WIDTH / 2, y: CARD_HEIGHT * 7 / 16});
+                pips.push({x: CARD_WIDTH / 2, y: CARD_HEIGHT * 9 / 16});
+              }
+              
+              // Draw the pips
+              pips.slice(0, rank).forEach(pip => {
+                ctx.fillText(suitSymbol, pip.x, pip.y);
+              });
+            } else if (rank > 10) {
+              // Face card - display letter in the middle
+              ctx.font = 'bold 70px Arial';
+              ctx.textAlign = 'center';
+              ctx.textBaseline = 'middle';
+              ctx.fillText(rankText, CARD_WIDTH / 2, CARD_HEIGHT / 2);
+            }
           }
+          
+          // Convert canvas to texture
+          this.cardTextures[key] = PIXI.Texture.from(canvas);
         }
       }
       
       // Create empty pile markers
       for (let i = 0; i < 4; i++) {
         const emptyFoundation = new PIXI.Sprite(this.emptyPileTexture);
-        emptyFoundation.alpha = 0.2;
+        emptyFoundation.alpha = 0.3;
         emptyFoundation.width = CARD_WIDTH * CARD_SCALE;
         emptyFoundation.height = CARD_HEIGHT * CARD_SCALE;
-        emptyFoundation.tint = 0x999999;
+        emptyFoundation.tint = 0xCCCCCC;
         this.containers.foundations[i].addChild(emptyFoundation);
       }
       
       for (let i = 0; i < 7; i++) {
         const emptyTableau = new PIXI.Sprite(this.emptyPileTexture);
-        emptyTableau.alpha = 0.2;
+        emptyTableau.alpha = 0.3;
         emptyTableau.width = CARD_WIDTH * CARD_SCALE;
         emptyTableau.height = CARD_HEIGHT * CARD_SCALE;
-        emptyTableau.tint = 0x999999;
+        emptyTableau.tint = 0xCCCCCC;
         this.containers.tableau[i].addChild(emptyTableau);
       }
       
       // Empty stock pile
       const emptyStock = new PIXI.Sprite(this.emptyPileTexture);
-      emptyStock.alpha = 0.2;
+      emptyStock.alpha = 0.3;
       emptyStock.width = CARD_WIDTH * CARD_SCALE;
       emptyStock.height = CARD_HEIGHT * CARD_SCALE;
-      emptyStock.tint = 0x999999;
+      emptyStock.tint = 0xCCCCCC;
       this.containers.stock.addChild(emptyStock);
       
       // Empty waste pile
       const emptyWaste = new PIXI.Sprite(this.emptyPileTexture);
-      emptyWaste.alpha = 0.2;
+      emptyWaste.alpha = 0.3;
       emptyWaste.width = CARD_WIDTH * CARD_SCALE;
       emptyWaste.height = CARD_HEIGHT * CARD_SCALE;
-      emptyWaste.tint = 0x999999;
+      emptyWaste.tint = 0xCCCCCC;
       this.containers.waste.addChild(emptyWaste);
       
       this.isLoaded = true;
+      
+      // Position containers before exiting load function
       this.positionContainers();
+      
+      console.log("PixiRenderer loadAssets completed successfully");
     } catch (error) {
-      console.error("Error loading assets:", error);
+      console.error("Error loading PixiRenderer assets:", error);
       throw error;
     }
   }
@@ -263,7 +304,14 @@ export class PixiRenderer {
     }
     
     this.resizeTimeout = window.setTimeout(() => {
-      if (this.app.screen) {
+      if (!this.app) return;
+      
+      const parentElement = this.app.view.parentElement;
+      if (parentElement) {
+        this.app.renderer.resize(
+          parentElement.clientWidth,
+          parentElement.clientHeight
+        );
         this.positionContainers();
         this.updateCardPositions();
       }
@@ -271,11 +319,7 @@ export class PixiRenderer {
   }
   
   private positionContainers(): void {
-    if (!this.app || !this.app.renderer) {
-      console.warn("Cannot position containers: app.renderer is not defined");
-      return;
-    }
-    
+    // Get dimensions from the renderer
     const width = this.app.renderer.width;
     const height = this.app.renderer.height;
     
@@ -348,10 +392,14 @@ export class PixiRenderer {
   private createCardSprites(cards: Card[]): void {
     cards.forEach(card => {
       if (!this.cardSprites[card.id]) {
-        const texture = card.faceUp 
-          ? this.cardTextures[`${card.suit}-${card.rank}`]
-          : this.cardBackTexture!;
-          
+        let texture;
+        
+        if (card.faceUp) {
+          texture = this.cardTextures[`${card.suit}-${card.rank}`];
+        } else {
+          texture = this.cardBackTexture!;
+        }
+        
         if (!texture) {
           console.error(`Texture not found for card: ${card.id}`);
           return;
@@ -365,6 +413,16 @@ export class PixiRenderer {
         (sprite as any).cardData = card;
         
         this.cardSprites[card.id] = sprite;
+      } else {
+        // Update existing sprite if card face changed
+        const sprite = this.cardSprites[card.id];
+        const currentTexture = card.faceUp 
+          ? this.cardTextures[`${card.suit}-${card.rank}`]
+          : this.cardBackTexture!;
+        
+        if (sprite.texture !== currentTexture) {
+          sprite.texture = currentTexture;
+        }
       }
     });
   }
@@ -415,7 +473,8 @@ export class PixiRenderer {
   }
   
   private updateCardPositions(): void {
-    // This method would need to update positions based on the current state
+    // This method would update positions of all cards based on current state
+    // For simplicity, we'll just re-render everything through updateCards() when needed
   }
   
   private setupInteractivity(
@@ -660,11 +719,9 @@ export class PixiRenderer {
   }
   
   public winAnimation(): void {
-    if (!this.app.screen) return;
-    
     // Create falling card sprites
-    const width = this.app.screen.width;
-    const height = this.app.screen.height;
+    const width = this.app.renderer.width;
+    const height = this.app.renderer.height;
     
     // Create 52 falling cards
     for (let i = 0; i < 52; i++) {
@@ -715,7 +772,7 @@ export class PixiRenderer {
     if (this.emptyPileTexture) this.emptyPileTexture.destroy?.(true);
     
     if (this.app) {
-      this.app.destroy(true, { children: true, texture: true });
+      this.app.destroy(true);
     }
   }
 }

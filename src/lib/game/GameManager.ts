@@ -12,6 +12,12 @@ export class GameManager {
   private winCallback: (() => void) | null = null;
   
   constructor(canvas: HTMLCanvasElement) {
+    // Ensure canvas has proper dimensions
+    if (canvas.parentElement) {
+      canvas.width = canvas.parentElement.clientWidth;
+      canvas.height = canvas.parentElement.clientHeight;
+    }
+    
     this.gameLogic = new SolitaireGameLogic();
     this.renderer = new PixiRenderer(canvas);
     this.audioManager = new AudioManager();
@@ -27,8 +33,15 @@ export class GameManager {
       console.log("Starting asset loading...");
       // Small delay to ensure the canvas is fully ready
       await new Promise(resolve => setTimeout(resolve, 100));
-      await this.renderer.loadAssets();
+      
+      // Initialize audio first
       await this.audioManager.initialize();
+      console.log("Audio assets loaded successfully");
+      
+      // Then initialize renderer
+      await this.renderer.loadAssets();
+      console.log("Renderer assets loaded successfully");
+      
       console.log("Game assets loaded successfully");
     } catch (error) {
       console.error("Error loading game assets:", error);
