@@ -12,15 +12,12 @@ export class GameManager {
   private winCallback: (() => void) | null = null;
   
   constructor(canvas: HTMLCanvasElement) {
-    // Ensure canvas has proper dimensions
-    if (canvas.parentElement) {
-      canvas.width = canvas.parentElement.clientWidth;
-      canvas.height = canvas.parentElement.clientHeight;
-    }
-    
+    // Initialize game logic and audio first
     this.gameLogic = new SolitaireGameLogic();
-    this.renderer = new PixiRenderer(canvas);
     this.audioManager = new AudioManager();
+    
+    // Initialize renderer last - passing the canvas
+    this.renderer = new PixiRenderer(canvas);
     
     // Set up callbacks
     this.gameLogic.setUpdateCallback(this.onGameStateUpdate.bind(this));
@@ -32,7 +29,7 @@ export class GameManager {
     try {
       console.log("Starting asset loading...");
       // Small delay to ensure the canvas is fully ready
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise(resolve => setTimeout(resolve, 300));
       
       // Initialize audio first
       await this.audioManager.initialize();
@@ -147,8 +144,20 @@ export class GameManager {
   }
   
   public destroy(): void {
-    this.gameLogic.destroy();
-    this.renderer.destroy();
-    this.audioManager.destroy();
+    if (this.gameLogic) {
+      this.gameLogic.destroy();
+    }
+    
+    if (this.renderer) {
+      try {
+        this.renderer.destroy();
+      } catch (e) {
+        console.error("Error destroying renderer:", e);
+      }
+    }
+    
+    if (this.audioManager) {
+      this.audioManager.destroy();
+    }
   }
 }

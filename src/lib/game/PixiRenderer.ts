@@ -12,7 +12,7 @@ export interface CardMoveEvent {
 }
 
 export class PixiRenderer {
-  private app: PIXI.Application;
+  private app: PIXI.Application | null = null;
   private cardTextures: Record<string, PIXI.Texture> = {};
   private cardSprites: Record<string, PIXI.Sprite> = {};
   private cardBackTexture: PIXI.Texture | null = null;
@@ -31,19 +31,12 @@ export class PixiRenderer {
   private isLoaded = false;
   private resizeTimeout: number | null = null;
   private animationInProgress = false;
+  private canvas: HTMLCanvasElement;
   
   constructor(canvas: HTMLCanvasElement) {
-    // Initialize Pixi Application first with the canvas
-    this.app = new PIXI.Application({
-      view: canvas as HTMLCanvasElement,
-      resolution: window.devicePixelRatio || 1,
-      backgroundColor: 0x219653, // Solitaire green
-      autoDensity: true,
-      width: canvas.width,
-      height: canvas.height
-    });
+    this.canvas = canvas;
     
-    // Initialize containers
+    // Initialize containers first (will be added to app later)
     this.containers = {
       stock: new PIXI.Container(),
       waste: new PIXI.Container(),
@@ -65,22 +58,52 @@ export class PixiRenderer {
       dragLayer: new PIXI.Container()
     };
     
-    // Add containers to stage
-    this.app.stage.addChild(this.containers.stock);
-    this.app.stage.addChild(this.containers.waste);
-    
-    for (const foundation of this.containers.foundations) {
-      this.app.stage.addChild(foundation);
-    }
-    
-    for (const tableau of this.containers.tableau) {
-      this.app.stage.addChild(tableau);
-    }
-    
-    this.app.stage.addChild(this.containers.dragLayer);
-    
     // Handle window resize
     window.addEventListener('resize', this.handleResize.bind(this));
+  }
+  
+  private initializeApp(): void {
+    if (this.app) return;
+    
+    try {
+      // Make sure canvas has proper dimensions
+      if (this.canvas.parentElement) {
+        this.canvas.width = this.canvas.parentElement.clientWidth || 800;
+        this.canvas.height = this.canvas.parentElement.clientHeight || 600;
+      }
+      
+      // Create the Pixi application - using recommended Pixi v8 approach
+      this.app = new PIXI.Application();
+      PIXI.Application.init({
+        canvas: this.canvas,
+        backgroundColor: 0x219653, // Solitaire green
+        resolution: window.devicePixelRatio || 1,
+        autoDensity: true,
+        width: this.canvas.width,
+        height: this.canvas.height
+      }).then(app => {
+        this.app = app;
+        
+        // Add containers to stage
+        if (this.app && this.app.stage) {
+          this.app.stage.addChild(this.containers.stock);
+          this.app.stage.addChild(this.containers.waste);
+          
+          for (const foundation of this.containers.foundations) {
+            this.app.stage.addChild(foundation);
+          }
+          
+          for (const tableau of this.containers.tableau) {
+            this.app.stage.addChild(tableau);
+          }
+          
+          this.app.stage.addChild(this.containers.dragLayer);
+        }
+      });
+    } catch (error) {
+      console.error("Failed to initialize Pixi application:", error);
+      throw error;
+    }
   }
   
   public async loadAssets(): Promise<void> {
@@ -88,7 +111,35 @@ export class PixiRenderer {
       console.log("PixiRenderer loadAssets starting...");
       
       if (this.isLoaded) return;
-
+      
+      // Initialize the Pixi application
+      this.initializeApp();
+      
+      // Wait for app to be properly initialized
+      await new Promise<void>((resolve) => {
+        if (this.app && this.app.stage) {
+          resolve();
+        } else {
+          // Check every 100ms if app is ready
+          const checkInterval = setInterval(() => {
+            if (this.app && this.app.stage) {
+              clearInterval(checkInterval);
+              resolve();
+            }
+          }, 100);
+          
+          // Timeout after 5 seconds
+          setTimeout(() => {
+            clearInterval(checkInterval);
+            if (!this.app || !this.app.stage) {
+              console.error("Timed out waiting for Pixi app initialization");
+              throw new Error("Pixi app initialization timeout");
+            }
+            resolve();
+          }, 5000);
+        }
+      });
+      
       // Create base textures for cards using canvas rendering
       // Empty pile texture
       const emptyPileCanvas = document.createElement('canvas');
@@ -228,7 +279,11 @@ export class PixiRenderer {
         }
       }
       
-      // Create empty pile markers
+      // Create empty pile markers after app is initialized
+      if (!this.app || !this.app.stage) {
+        throw new Error("Pixi application not initialized properly");
+      }
+      
       for (let i = 0; i < 4; i++) {
         const emptyFoundation = new PIXI.Sprite(this.emptyPileTexture);
         emptyFoundation.alpha = 0.3;
@@ -304,14 +359,15 @@ export class PixiRenderer {
     }
     
     this.resizeTimeout = window.setTimeout(() => {
-      if (!this.app) return;
+      if (!this.app || !this.canvas) return;
       
-      const parentElement = this.app.view.parentElement;
-      if (parentElement) {
-        this.app.renderer.resize(
-          parentElement.clientWidth,
-          parentElement.clientHeight
-        );
+      if (this.canvas.parentElement) {
+        this.canvas.width = this.canvas.parentElement.clientWidth;
+        this.canvas.height = this.canvas.parentElement.clientHeight;
+        
+        // Update the renderer size
+        this.app.renderer.resize(this.canvas.width, this.canvas.height);
+        
         this.positionContainers();
         this.updateCardPositions();
       }
@@ -319,9 +375,14 @@ export class PixiRenderer {
   }
   
   private positionContainers(): void {
-    // Get dimensions from the renderer
-    const width = this.app.renderer.width;
-    const height = this.app.renderer.height;
+    if (!this.app || !this.canvas || !this.canvas.width || !this.canvas.height) {
+      console.warn("Cannot position containers: app or canvas not properly initialized");
+      return;
+    }
+    
+    // Get dimensions from the canvas
+    const width = this.canvas.width;
+    const height = this.canvas.height;
     
     // Calculate layout
     const scaledCardWidth = CARD_WIDTH * CARD_SCALE;
@@ -483,6 +544,11 @@ export class PixiRenderer {
     foundations: Card[][],
     tableau: Card[][]
   ): void {
+    if (!this.app) {
+      console.warn("Cannot setup interactivity: app not initialized");
+      return;
+    }
+    
     // Make stock pile clickable
     if (stock.length > 0) {
       const stockSprite = this.containers.stock.children[this.containers.stock.children.length - 1];
@@ -556,13 +622,23 @@ export class PixiRenderer {
   }
   
   private makeCardDraggable(sprite: PIXI.Sprite, pileType: PileType, pileIndex: number, cardIndex: number): void {
+    if (!this.app) {
+      console.warn("Cannot make cards draggable: app not initialized");
+      return;
+    }
+    
     sprite.eventMode = 'static';
     sprite.cursor = 'pointer';
     
     sprite.on('pointerdown', (event) => {
-      if (this.animationInProgress) return;
+      if (this.animationInProgress || !this.app || !this.app.stage) return;
       
       const parentContainer = sprite.parent;
+      if (!parentContainer) {
+        console.warn("Card sprite has no parent container");
+        return;
+      }
+      
       this.dragOrigin = { pile: pileType, index: pileIndex, cardIndex };
       
       // Calculate global position
@@ -577,16 +653,18 @@ export class PixiRenderer {
         const containerChildren = parentContainer.children;
         const startIndex = containerChildren.findIndex(child => child === sprite);
         
-        for (let i = startIndex; i < containerChildren.length; i++) {
-          const child = containerChildren[i] as PIXI.Sprite;
-          const dragSprite = new PIXI.Sprite(child.texture);
-          dragSprite.scale.set(CARD_SCALE);
-          
-          // Position relative to the first dragged card
-          dragSprite.position.y = (i - startIndex) * CARD_OVERLAP;
-          
-          this.draggedCards.push(dragSprite);
-          this.containers.dragLayer.addChild(dragSprite);
+        if (startIndex !== -1) {
+          for (let i = startIndex; i < containerChildren.length; i++) {
+            const child = containerChildren[i] as PIXI.Sprite;
+            const dragSprite = new PIXI.Sprite(child.texture);
+            dragSprite.scale.set(CARD_SCALE);
+            
+            // Position relative to the first dragged card
+            dragSprite.position.y = (i - startIndex) * CARD_OVERLAP;
+            
+            this.draggedCards.push(dragSprite);
+            this.containers.dragLayer.addChild(dragSprite);
+          }
         }
       } else {
         // For waste and foundation, just drag the single card
@@ -671,7 +749,7 @@ export class PixiRenderer {
     onComplete?: () => void
   ): void {
     const sprite = this.cardSprites[card.id];
-    if (!sprite) return;
+    if (!sprite || !this.app || !this.app.stage) return;
     
     this.animationInProgress = true;
     
@@ -686,7 +764,9 @@ export class PixiRenderer {
       .to({ x: toPos.x, y: toPos.y }, 250)
       .easing(TWEEN.Easing.Quadratic.Out)
       .onComplete(() => {
-        this.app.stage.removeChild(animSprite);
+        if (this.app && this.app.stage) {
+          this.app.stage.removeChild(animSprite);
+        }
         this.animationInProgress = false;
         if (onComplete) onComplete();
       })
@@ -719,9 +799,11 @@ export class PixiRenderer {
   }
   
   public winAnimation(): void {
+    if (!this.app || !this.app.stage) return;
+    
     // Create falling card sprites
-    const width = this.app.renderer.width;
-    const height = this.app.renderer.height;
+    const width = this.canvas.width;
+    const height = this.canvas.height;
     
     // Create 52 falling cards
     for (let i = 0; i < 52; i++) {
@@ -747,7 +829,9 @@ export class PixiRenderer {
         .delay(Math.random() * 2000)
         .easing(TWEEN.Easing.Quadratic.In)
         .onComplete(() => {
-          this.app.stage.removeChild(sprite);
+          if (this.app && this.app.stage) {
+            this.app.stage.removeChild(sprite);
+          }
         })
         .start();
         
@@ -767,12 +851,141 @@ export class PixiRenderer {
     }
     
     // Destroy all textures and sprites
-    Object.values(this.cardTextures).forEach(texture => texture?.destroy?.(true));
-    if (this.cardBackTexture) this.cardBackTexture.destroy?.(true);
-    if (this.emptyPileTexture) this.emptyPileTexture.destroy?.(true);
+    Object.values(this.cardTextures).forEach(texture => {
+      try {
+        texture?.destroy?.(true);
+      } catch (e) {
+        console.error("Error destroying texture:", e);
+      }
+    });
+    
+    if (this.cardBackTexture) {
+      try {
+        this.cardBackTexture.destroy?.(true);
+      } catch (e) {
+        console.error("Error destroying card back texture:", e);
+      }
+    }
+    
+    if (this.emptyPileTexture) {
+      try {
+        this.emptyPileTexture.destroy?.(true);
+      } catch (e) {
+        console.error("Error destroying empty pile texture:", e);
+      }
+    }
     
     if (this.app) {
-      this.app.destroy(true);
+      try {
+        this.app.destroy(true);
+        this.app = null;
+      } catch (e) {
+        console.error("Error destroying Pixi application:", e);
+      }
     }
+  }
+  
+  private positionStockCards(cards: Card[]): void {
+    if (cards.length === 0) return;
+    
+    const topCard = cards[cards.length - 1];
+    const sprite = this.cardSprites[topCard.id];
+    if (sprite) {
+      this.containers.stock.addChild(sprite);
+    }
+  }
+  
+  private positionWasteCards(cards: Card[]): void {
+    if (cards.length === 0) return;
+    
+    const topCard = cards[cards.length - 1];
+    const sprite = this.cardSprites[topCard.id];
+    if (sprite) {
+      this.containers.waste.addChild(sprite);
+    }
+  }
+  
+  private positionFoundationCards(foundations: Card[][]): void {
+    foundations.forEach((pile, index) => {
+      if (pile.length === 0) return;
+      
+      const topCard = pile[pile.length - 1];
+      const sprite = this.cardSprites[topCard.id];
+      if (sprite) {
+        this.containers.foundations[index].addChild(sprite);
+      }
+    });
+  }
+  
+  private positionTableauCards(tableau: Card[][]): void {
+    tableau.forEach((pile, pileIndex) => {
+      pile.forEach((card, cardIndex) => {
+        const sprite = this.cardSprites[card.id];
+        if (sprite) {
+          // Position the card with overlap
+          sprite.position.y = (card.faceUp ? CARD_OVERLAP : CARD_FACE_DOWN_OVERLAP) * cardIndex;
+          this.containers.tableau[pileIndex].addChild(sprite);
+        }
+      });
+    });
+  }
+  
+  private onDragMove(event: PIXI.FederatedPointerEvent): void {
+    if (this.draggedCards.length === 0) return;
+    
+    const newPosition = event.global;
+    this.containers.dragLayer.position.set(newPosition.x, newPosition.y);
+  }
+  
+  private onDragEnd(event: PIXI.FederatedPointerEvent): void {
+    if (!this.app || !this.app.stage) return;
+    
+    this.app.stage.off('pointermove', this.onDragMove, this);
+    this.app.stage.off('pointerup', this.onDragEnd, this);
+    this.app.stage.off('pointerupoutside', this.onDragEnd, this);
+    
+    if (this.draggedCards.length === 0 || !this.dragOrigin) return;
+    
+    // Determine drop target
+    const dropTarget = this.getDropTarget(event.global);
+    
+    // Clear drag layer
+    this.containers.dragLayer.removeChildren();
+    this.draggedCards = [];
+    
+    if (dropTarget && this.onCardMoveCallback) {
+      // Attempt to move card
+      this.onCardMoveCallback({
+        fromPile: this.dragOrigin.pile,
+        fromIndex: this.dragOrigin.index,
+        cardIndex: this.dragOrigin.cardIndex,
+        toPile: dropTarget.pile,
+        toIndex: dropTarget.index
+      });
+    }
+    
+    this.dragOrigin = null;
+  }
+  
+  private getDropTarget(position: PIXI.Point): { pile: PileType; index: number } | null {
+    // Check foundations
+    for (let i = 0; i < 4; i++) {
+      const bounds = this.containers.foundations[i].getBounds();
+      if (position.x >= bounds.x && position.x <= bounds.x + bounds.width &&
+          position.y >= bounds.y && position.y <= bounds.y + bounds.height) {
+        return { pile: PileType.FOUNDATION, index: i };
+      }
+    }
+    
+    // Check tableau piles
+    for (let i = 0; i < 7; i++) {
+      const bounds = this.containers.tableau[i].getBounds();
+      if (position.x >= bounds.x && position.x <= bounds.x + bounds.width &&
+          position.y >= bounds.y) { // No upper bound check for tableau as it can extend vertically
+        return { pile: PileType.TABLEAU, index: i };
+      }
+    }
+    
+    return null;
   }
 }
