@@ -34,10 +34,9 @@ export class PixiRenderer {
   constructor(canvas: HTMLCanvasElement) {
     // Create Pixi Application
     this.app = new PIXI.Application({
-      view: canvas,
-      resizeTo: canvas,
-      backgroundColor: 0x219653, // Solitaire green
+      view: canvas as HTMLCanvasElement,
       resolution: window.devicePixelRatio || 1,
+      backgroundColor: 0x219653, // Solitaire green
       autoDensity: true
     });
     
@@ -77,9 +76,6 @@ export class PixiRenderer {
     
     this.app.stage.addChild(this.containers.dragLayer);
     
-    // Remove TWEEN update from ticker - we'll use the global animation frame instead
-    // from tween.ts
-    
     // Handle window resize
     window.addEventListener('resize', this.handleResize.bind(this));
   }
@@ -88,68 +84,52 @@ export class PixiRenderer {
     if (this.isLoaded) return;
     
     try {
-      // Create temporary textures for development
-      this.emptyPileTexture = PIXI.Texture.from('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAACWCAQAAACK6o+NAAAA2ElEQVR4Ae3VMREAAAQEMZ+Y2vYSQA4Xj5LJ7FQsCBGICBABIgJEgIgAESAiQASICBABIgJEgIgAESAiQASICBABIgJEgIgAESAiQASICBABIgJEgIgAESAiQASICBABIgJEgIgAESAiQASICBABIgJEgIgAESAiQASICBABIgJEgIgAESAiQASICBABIgJEBMjwgAEEBQ37/JQdAAAAAElFTkSuQmCC');
+      // Create base textures for cards using direct URLs instead of graphics generation
+      this.emptyPileTexture = PIXI.Texture.from('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAACWCAQAAACK6o+NAAAA2ElEQVR4Ae3VMREAAAQEMZ+Y2vYSQA4Xj5LJ7FQsCBGICBABIgJEgIgAESAiQASICBABIgJEgIgAESAiQASICBABIgJEgIgAESAiQASICBABIgJEgIgAESAiQASICBABIgJEgIgAESAiQASICBABIgJEBMjwgAEEBQ37/JQdAAAAAElFTkSuQmCC');
       this.cardBackTexture = PIXI.Texture.from('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAACWCAQAAACK6o+NAAAA2klEQVR4Ae3VMQ0AAAzDsPIPvSS4QQtIZrMXiwMCIkAEiAgQASICRICIABEgIkAEiAgQASICRICIABEgIkAEiAgQASICRICIABEgIkAEiAgQASICRICIABEgIkAEiAgQedUBsQEE0cnDiU8AAAAASUVORK5CYII=');
 
-      // Create temporary card textures for all cards
       const suits = Object.values(Suit);
       const ranks = Array.from({ length: 13 }, (_, i) => i + 1);
 
-      // Create temporary card textures for all cards
+      // Create simple card textures using canvas instead of PIXI.Graphics
       for (const suit of suits) {
         for (const rank of ranks) {
           const key = `${suit}-${rank}`;
           const isRed = suit === Suit.HEARTS || suit === Suit.DIAMONDS;
-          const color = isRed ? 0xFF0000 : 0x000000;
           
-          // Create a simple graphic for each card
-          const graphics = new PIXI.Graphics();
-          graphics.beginFill(0xFFFFFF);
-          graphics.lineStyle(2, 0x000000);
-          graphics.drawRoundedRect(0, 0, CARD_WIDTH, CARD_HEIGHT, 10);
-          graphics.endFill();
+          // Create a canvas for the card
+          const canvas = document.createElement('canvas');
+          canvas.width = CARD_WIDTH;
+          canvas.height = CARD_HEIGHT;
+          const ctx = canvas.getContext('2d');
           
-          // Add suit and rank
-          const rankText = this.getRankText(rank);
-          const suitSymbol = this.getSuitSymbol(suit);
-          
-          const rankDisplay = new PIXI.Text(rankText, { 
-            fontSize: 24, 
-            fill: color,
-            fontWeight: 'bold'
-          });
-          rankDisplay.position.set(10, 10);
-          
-          const suitDisplay = new PIXI.Text(suitSymbol, { 
-            fontSize: 24, 
-            fill: color
-          });
-          suitDisplay.position.set(10, 40);
-          
-          const centerRankDisplay = new PIXI.Text(rankText, { 
-            fontSize: 40, 
-            fill: color,
-            fontWeight: 'bold'
-          });
-          centerRankDisplay.position.set(CARD_WIDTH / 2, CARD_HEIGHT / 2);
-          centerRankDisplay.anchor.set(0.5);
-          
-          const centerSuitDisplay = new PIXI.Text(suitSymbol, { 
-            fontSize: 40, 
-            fill: color
-          });
-          centerSuitDisplay.position.set(CARD_WIDTH / 2, CARD_HEIGHT / 2 + 40);
-          centerSuitDisplay.anchor.set(0.5);
-          
-          graphics.addChild(rankDisplay);
-          graphics.addChild(suitDisplay);
-          graphics.addChild(centerRankDisplay);
-          graphics.addChild(centerSuitDisplay);
-          
-          // Convert graphics to texture
-          this.cardTextures[key] = this.app.renderer.generateTexture(graphics);
-          graphics.destroy();
+          if (ctx) {
+            // Draw card background
+            ctx.fillStyle = '#FFFFFF';
+            ctx.strokeStyle = '#000000';
+            ctx.lineWidth = 2;
+            ctx.fillRect(0, 0, CARD_WIDTH, CARD_HEIGHT);
+            ctx.strokeRect(0, 0, CARD_WIDTH, CARD_HEIGHT);
+            
+            // Draw rank and suit
+            const rankText = this.getRankText(rank);
+            const suitSymbol = this.getSuitSymbol(suit);
+            ctx.fillStyle = isRed ? '#FF0000' : '#000000';
+            ctx.font = 'bold 24px Arial';
+            
+            // Top-left rank and suit
+            ctx.fillText(rankText, 10, 30);
+            ctx.fillText(suitSymbol, 10, 60);
+            
+            // Center rank and suit
+            ctx.font = 'bold 40px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText(rankText, CARD_WIDTH / 2, CARD_HEIGHT / 2 - 10);
+            ctx.fillText(suitSymbol, CARD_WIDTH / 2, CARD_HEIGHT / 2 + 40);
+            
+            // Convert canvas to texture
+            this.cardTextures[key] = PIXI.Texture.from(canvas);
+          }
         }
       }
       
@@ -231,7 +211,8 @@ export class PixiRenderer {
   }
   
   private positionContainers(): void {
-    const { width, height } = this.app.screen;
+    const width = this.app.screen.width;
+    const height = this.app.screen.height;
     
     // Calculate layout
     const scaledCardWidth = CARD_WIDTH * CARD_SCALE;
@@ -369,7 +350,6 @@ export class PixiRenderer {
   }
   
   private updateCardPositions(): void {
-    // Update all card positions without animations (e.g., after a window resize)
     // Implementation details would depend on how you track the current state
   }
   
@@ -577,7 +557,7 @@ export class PixiRenderer {
     animSprite.position.set(fromPos.x, fromPos.y);
     this.app.stage.addChild(animSprite);
     
-    // Use TWEEN for animation without relying on app.ticker
+    // Use TWEEN for animation 
     new TWEEN.Tween(animSprite.position)
       .to({ x: toPos.x, y: toPos.y }, 250)
       .easing(TWEEN.Easing.Quadratic.Out)
@@ -596,7 +576,7 @@ export class PixiRenderer {
     
     this.animationInProgress = true;
     
-    // Use TWEEN for animation without relying on app.ticker
+    // Use TWEEN for animation
     new TWEEN.Tween(sprite.scale)
       .to({ x: 0 }, 150)
       .onComplete(() => {
@@ -617,7 +597,8 @@ export class PixiRenderer {
   
   public winAnimation(): void {
     // Create falling card sprites
-    const { width, height } = this.app.screen;
+    const width = this.app.screen.width;
+    const height = this.app.screen.height;
     
     // Create 52 falling cards
     for (let i = 0; i < 52; i++) {
@@ -664,11 +645,10 @@ export class PixiRenderer {
     }
     
     // Destroy all textures and sprites
-    Object.values(this.cardTextures).forEach(texture => texture.destroy());
-    if (this.cardBackTexture) this.cardBackTexture.destroy();
-    if (this.emptyPileTexture) this.emptyPileTexture.destroy();
+    Object.values(this.cardTextures).forEach(texture => texture.destroy(true));
+    if (this.cardBackTexture) this.cardBackTexture.destroy(true);
+    if (this.emptyPileTexture) this.emptyPileTexture.destroy(true);
     
-    // Simplify destroy options
-    this.app.destroy(true);
+    this.app.destroy(true, { children: true, texture: true });
   }
 }

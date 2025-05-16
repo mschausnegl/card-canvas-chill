@@ -1,21 +1,23 @@
 
 import * as TWEEN from '@tweenjs/tween.js';
 
-// Initialize TWEEN for use throughout the application
-const tween = TWEEN;
+let animationFrame: number | null = null;
 
-// Make sure TWEEN.update is called in an animation loop
-const initTweenUpdates = () => {
-  function animate(time?: number) {
-    requestAnimationFrame(animate);
-    TWEEN.update(time);
+// Animation function that updates TWEEN on each frame
+function animate(time?: number) {
+  animationFrame = requestAnimationFrame(animate);
+  TWEEN.update(time);
+}
+
+// Start the animation loop immediately
+animate();
+
+// Clean up function if needed
+export function stopTweenAnimations() {
+  if (animationFrame !== null) {
+    cancelAnimationFrame(animationFrame);
+    animationFrame = null;
   }
-  
-  // Start the animation loop
-  requestAnimationFrame(animate);
-};
-
-// Call the function to start the animation loop
-initTweenUpdates();
+}
 
 export default TWEEN;
